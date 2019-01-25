@@ -78,7 +78,7 @@ def LoadPage(site, dirpath, fname):
     if tagsEl is not None:
         tags=[t.text for t in tagsEl.findall("tag")]
 
-    print(fname)
+    #print(fname)
 
     f=open(os.path.join(pathname+".txt"), "rb") # Reading in binary and doing the funny decode is to handle special characters embedded in some sources.
     source=f.read().decode("cp437")
@@ -87,7 +87,7 @@ def LoadPage(site, dirpath, fname):
     # First, check to see if this is a redirect.  If it is, we're done.
     redirect=WikidotHelpers.IsRedirect(source)
     if redirect:
-        site[redirect]=PageInfo(title, fname, tags, None, redirect)
+        site[fname]=PageInfo(title, fname, tags, None, redirect)
         return
 
     # Now we scan the source for links.
@@ -107,7 +107,7 @@ def LoadPage(site, dirpath, fname):
         links.append(link)
         source=source[loc2:]
 
-    site[redirect]=PageInfo(title, fname, tags, links, None)
+    site[fname]=PageInfo(title, fname, tags, links, None)
 
     return
 
@@ -135,6 +135,26 @@ root=r"C:\Users\mlo\Documents\usr\Fancyclopedia\Python\site"
 
 site={}
 LoadDirectory(site, root)
+
+# Now we have a complete map of the links in site.
+# The map lists the links *leaving* each page.  We want to generate the inverted map showing the links *in* to each page.
+
+def AddLink(inverseSite, link, name):
+    if link in inverseSite:
+        inverseSite[link].append(name)
+    else:
+        inverseSite[link]=[name]
+
+inverseSite={}      # A dictionary of all pages (existing or not) with a list of the pages that point to it. This is case-sensitive.
+for (key, val) in site.items():
+    if val.Links is not None:
+        for link in val.Links:
+            AddLink(inverseSite, link, key)
+    else:
+        if val.Redirect is not None:
+            AddLink(inverseSite, val.Redirect, key)
+
+i=0
 
 
 

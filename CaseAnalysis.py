@@ -94,7 +94,6 @@ def LoadPage(site, dirpath, fname):
     # A link is one of these formats:
     #   [[[link]]]
     #   [[[link|display text]]]
-
     links=[]
     while len(source) > 0:
         loc=source.find("[[[")
@@ -104,7 +103,11 @@ def LoadPage(site, dirpath, fname):
         if loc2 == -1:
             break
         link=source[loc+3:loc2]
+        # Now look at the possibility of the link containing display text.  If there is a "|" in the link, then only the text to the left of the "|" is the link
+        if "|" in link:
+            link=link[:link.find("|")]
         links.append(link)
+        # trim off the text which has been processed and try again
         source=source[loc2:]
 
     site[fname]=PageInfo(title, fname, tags, links, None)
@@ -153,6 +156,11 @@ for (key, val) in site.items():
     else:
         if val.Redirect is not None:
             AddLink(inverseSite, val.Redirect, key)
+
+# Now sort this into alphabetical order by cannonical form
+inverseKeys=list(inverseSite.keys())
+inverseKeys.sort(key=lambda elem: WikidotHelpers.CannonicizeString(elem))
+
 
 i=0
 

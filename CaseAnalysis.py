@@ -251,30 +251,6 @@ for key in inverseKeys:
     tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
 
 
-
-# secondLastCanKey="2nd last"    # Strings don't matter as long as they're unique
-# lastCanKey="just previous"
-# lastKey=""
-# for key in inverseKeys:
-#     if key == "":
-#         continue
-#     canKey=WikimediaCanonicize(key)
-#
-#     # If this is a new cannonical form, we don't print until we find a second instance.
-#     if canKey != lastCanKey:
-#         lastCanKey=canKey
-#         lastKey=key
-#         continue
-#     else:
-#         if secondLastCanKey != lastCanKey:
-#             # We now know that we have the cannonical key pattern X Y Y and so the *last* loop was a new, duplicated cannonical key.
-#             tempPrint("\n"+lastCanKey, fileMultiple)
-#             PrintPageList(fileMultiple, inverseSite, lastKey)
-#
-#         PrintPageList(fileMultiple, inverseSite, key)
-#         secondLastCanKey=lastCanKey
-#         lastCanKey=canKey
-
 fileMultiple.close()
 i=0
 

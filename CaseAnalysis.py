@@ -161,7 +161,44 @@ for (key, val) in site.items():
 inverseKeys=list(inverseSite.keys())
 inverseKeys.sort(key=lambda elem: WikidotHelpers.CannonicizeString(elem))
 
+# Generate a report on all pages where there is inconsistent capitalization in the links pointing to it.
+f=open("Pages with multiple linking forms.txt", "w")
+secondLastCanKey="2nd last"    # Strings don't matter as long as they're unique
+lastCanKey="just previous"
+lastKey=""
+for key in inverseKeys:
+    canKey=WikidotHelpers.CannonicizeString(key)
 
+    # If this is a new cannonical form, we're done printing output for now.
+    if canKey != lastCanKey:
+        lastCanKey=canKey
+        lastKey=key
+        continue
+
+    def PrintPageList(inverseSite, key):
+        pages=inverseSite[key]
+        line="'"+key+"' <=== "
+        for i in range(0, min(5, len(pages))):
+            line+="'"+pages[i]+"',  "
+        if len(pages) > 5:
+            line+=" plus "+str(len(pages)-5)+" more..."
+        try:
+            print(line, file=f)
+        except:
+            print("***** Warning. Character ugliness follows!", file=f)
+            print(line.encode("UTF-8"), file=f)
+            i=0
+
+    if secondLastCanKey != lastCanKey:
+        # We now know that we have the cannonical key pattern X Y Y and so the *last* loop was a new, duplicated cannonical key.
+        print("\n"+lastCanKey, file=f)
+        PrintPageList(inverseSite, lastKey)
+
+    PrintPageList(inverseSite, key)
+    secondLastCanKey=lastCanKey
+    lastCanKey=canKey
+
+f.close()
 i=0
 
 

@@ -14,41 +14,35 @@ def logger(message):
     print(message)
 
 
+#*******************************************************************************
+# Generate the Wikimedia canonicized form of a name
+# Note that for now we are ignoring the possibility of namespace: prefixes
+def WikimediaCanonicize(name):
+    if name is None:
+        return None
+    if name is "":
+        return ""
 
-# *****************************************************************
-# Should this filename be ignored?
-# This routine is highly wiki-dependent
-# Return value is either the cleaned filename or None if the file should be ignored.
-def InterestingFilenameZip(filenameZip):
+    # Underscores are treated as spaces
+    name=name.replace("_", " ")
 
-    if not filenameZip.startswith("source/"):    # We're only interested in source files
-        return None
-    if len(filenameZip) <= 11:  # There needs to be something there besides just 'source/.txt'
-           return None
+    # Leading spaces and underscores are ignored
+    name=name.strip()
 
-    # These files are specific to Fancyclopedia and are known to be ignorable
-    if filenameZip.startswith("source/deleted_"):   # Ignore deleted pages
-        return None
-    if filenameZip.startswith("source/nav_"):   # Ignore navigation pages
-        return None
-    if filenameZip.startswith("source/forum_"):   # Ignore forum pages
-        return None
-    if filenameZip.startswith("source/testing_"):   # These are test pages of various sorts
-        return None
-    if filenameZip.startswith("source/system_"):   # Ignore system pages
-        return None
-    if filenameZip.startswith("source/admin_"):   # Ignore system admin pages
-        return None
-    if filenameZip.startswith("source/search_"):   # Ignore system search pages
-        return None
-    if filenameZip.startswith("source/index_"):   # Ignore our index pages
-        return None
-    if filenameZip.startswith("source/most-wanted-pages"): # Ignore the *previous* most-wanted-pages page
-        return None
+    # Multiple consecutive spaces are treated as a single space
+    while "  " in name:
+        name=name.replace("  ", " ")
 
-    return filenameZip[7:-4]  # Drop "source/" and ".txt", returning the cleaned name
+    # Wikimedia always treats the 1st character as capital
+    name=name[:1].upper()+name[1:]
 
+    return name
+
+
+#*******************************************************************************
+# Define the PageInfo tuple
 PageInfo=collections.namedtuple("PageInfo", "Title, CanName, Tags, Links, Redirect")
+
 
 #==================================================================
 # Load the pages in the site directory
@@ -64,12 +58,15 @@ def LoadDirectory(site, dir):
     for fname in filenames:
         LoadPage(site, dirpath, fname)
 
+
+#==================================================================
 # Load a single page
+# Locate its links and add this page to the lists of pages that this page points to
 def LoadPage(site, dirpath, fname):
 
     pathname=os.path.join(dirpath, fname)
 
-    # Read the tags and title from fname.xml
+    # Read the tags and title from pathname.xml
     e=xml.etree.ElementTree.parse(pathname+".xml").getroot()
     title=e.find("title").text
 
@@ -82,10 +79,16 @@ def LoadPage(site, dirpath, fname):
 
     f=open(os.path.join(pathname+".txt"), "rb") # Reading in binary and doing the funny decode is to handle special characters embedded in some sources.
     source=f.read().decode("cp437")
-    f.close
+    f.close()
+
+    def IsRedirect(pageText):
+        pageText=pageText.strip()  # Remove leading and trailing whitespace
+        if pageText.lower().startswith('[[module redirect destination="') and pageText.endswith('"]]'):
+            return pageText[31:].rstrip('"]')
+        return None
 
     # First, check to see if this is a redirect.  If it is, we're done.
-    redirect=WikidotHelpers.IsRedirect(source)
+    redirect=IsRedirect(source)
     if redirect:
         site[fname]=PageInfo(title, fname, tags, None, redirect)
         return
@@ -94,7 +97,7 @@ def LoadPage(site, dirpath, fname):
     # A link is one of these formats:
     #   [[[link]]]
     #   [[[link|display text]]]
-    links=[]
+    links=set()    # Links is a *set* of all the unique pages pointed to by this page. (We use the set because we don't care about order, but do care about duplicates.)
     while len(source) > 0:
         loc=source.find("[[[")
         if loc == -1:
@@ -106,7 +109,7 @@ def LoadPage(site, dirpath, fname):
         # Now look at the possibility of the link containing display text.  If there is a "|" in the link, then only the text to the left of the "|" is the link
         if "|" in link:
             link=link[:link.find("|")]
-        links.append(link)
+        links.add(link)
         # trim off the text which has been processed and try again
         source=source[loc2:]
 
@@ -139,16 +142,20 @@ root=r"C:\Users\mlo\Documents\usr\Fancyclopedia\Python\site"
 site={}
 LoadDirectory(site, root)
 
-# Now we have a complete map of the links in site.
+# Now we have a complete map of the links in site.  All the page names are "raw" -- as they were in the wiki.  None have been canonicized.
 # The map lists the links *leaving* each page.  We want to generate the inverted map showing the links *in* to each page.
 
+#-----------------------------------
 def AddLink(inverseSite, link, name):
     if link in inverseSite:
         inverseSite[link].append(name)
     else:
         inverseSite[link]=[name]
+#-----------------------------------
 
-inverseSite={}      # A dictionary of all pages (existing or not) with a list of the pages that point to it. This is case-sensitive.
+
+# InverseSite is a dictionary of all outgoing links in the site (existing or not) in their exact form.  Each contains a list of the pages that name it.
+inverseSite={}
 for (key, val) in site.items():
     if val.Links is not None:
         for link in val.Links:
@@ -157,48 +164,118 @@ for (key, val) in site.items():
         if val.Redirect is not None:
             AddLink(inverseSite, val.Redirect, key)
 
-# Now sort this into alphabetical order by cannonical form
+# The main issue we're looking at is the Wikimedia canoniczation. Wikimedia does a much weaker canonization than does Wikidot, so links which
+# Wikidot interprets correctly will be routed to non-existant pages by Wikimedia.
+# We want inverseKeys to be sorted so that all pages that Wikidot sees as the same are sorted together.
+# Within a group of pages which are Wikidot-identical, we want to sort in order by their Wikimedia canonical forms.
+# Within each smaller group, we'll sort by the actual link text
+# We'll then list all links that are used in Wikidot which map to different Wikimedia pages.
 inverseKeys=list(inverseSite.keys())
-inverseKeys.sort(key=lambda elem: WikidotHelpers.CannonicizeString(elem))
+inverseKeys.sort(key=lambda elem: elem)
+inverseKeys.sort(key=lambda elem: WikimediaCanonicize(elem))
+inverseKeys.sort(key=lambda elem: WikidotHelpers.Cannonicize(elem))
 
-# Generate a report on all pages where there is inconsistent capitalization in the links pointing to it.
-f=open("Pages with multiple linking forms.txt", "w")
-secondLastCanKey="2nd last"    # Strings don't matter as long as they're unique
-lastCanKey="just previous"
-lastKey=""
+
+#-----------------------------------
+def tempPrint(line, f):
+    try:
+        print(line, file=f)
+    except:
+        print("***** Warning. Character ugliness follows!", file=f)
+        print(line.encode("UTF-8"), file=f)
+#-----------------------------------
+def FormatPageList(inverseSite, key):
+    pages=inverseSite[key]
+    line="'"+key+"' <=== "
+    for i in range(0, min(5, len(pages))):
+        line+="'"+pages[i]+"',  "
+    if len(pages) > 5:
+        line+=" plus "+str(len(pages)-5)+" more..."
+    return line
+# -----------------------------------
+def PrintPageList(f, inverseSite, key):
+    tempPrint(FormatPageList(inverseKeys, key), f)
+# -----------------------------------
+
+
+# Generate a report on all pages where there are linkage problems
+fileMultiple=open("Pages with multiple linking forms.txt", "w")
+fileDump=open("Dump of process output.txt", "w")
+
+# We're going to group on three levels:
+#   Wikidot Cannonical From
+#       Wikimedia Canonical Form
+#           Actual linkage
+# We only want to print when a single Wikidot Canonical Form has more than one Mediawiki Canonical Forms.  Then we want to list the actual linkages separately
+outerKey="nonsense"
+innerKey="random string"
+savedLinesArray=[]
+savedLines=[]
 for key in inverseKeys:
-    canKey=WikidotHelpers.CannonicizeString(key)
+    tempPrint("\nnew key="+key, fileDump)
+    # Is this the first record of a new Wikidot canonical name (outer key)?
+    if outerKey != WikidotHelpers.Cannonicize(key):
+        tempPrint("outer key changed from "+outerKey+"  to  "+WikidotHelpers.Cannonicize(key), fileDump)
 
-    # If this is a new cannonical form, we're done printing output for now.
-    if canKey != lastCanKey:
-        lastCanKey=canKey
-        lastKey=key
+        # If there were two or more inner keys in the previous outer key, print them
+        if len(savedLinesArray) > 1:
+            tempPrint("len(savedLinesArray)="+str(len(savedLinesArray)), fileDump)
+            tempPrint("\n"+outerKey, fileMultiple)
+            for sls in savedLinesArray:
+                for l in sls:
+                    tempPrint(l, fileMultiple)
+                    tempPrint("    "+l, fileDump)
+
+        # Now deal with the new outer key
+        outerKey=WikidotHelpers.Cannonicize(key)
+        innerKey="random string"
+        savedLinesArray=[]
+        savedLines=[]
+
+        # And save the line for this record.
+        savedLines.append(FormatPageList(inverseSite, key))   # Begin a new list of lines
+        tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
         continue
 
-    def PrintPageList(inverseSite, key):
-        pages=inverseSite[key]
-        line="'"+key+"' <=== "
-        for i in range(0, min(5, len(pages))):
-            line+="'"+pages[i]+"',  "
-        if len(pages) > 5:
-            line+=" plus "+str(len(pages)-5)+" more..."
-        try:
-            print(line, file=f)
-        except:
-            print("***** Warning. Character ugliness follows!", file=f)
-            print(line.encode("UTF-8"), file=f)
-            i=0
+    # The outer key is the same.  Is the second key the same, also?
+    if innerKey == WikimediaCanonicize(key):
+        tempPrint("innerKey same "+innerKey+"   Saved: "+FormatPageList(inverseSite, key), fileDump)
+        savedLines.append(FormatPageList(inverseSite, key))    # Save this line too
+        continue
 
-    if secondLastCanKey != lastCanKey:
-        # We now know that we have the cannonical key pattern X Y Y and so the *last* loop was a new, duplicated cannonical key.
-        print("\n"+lastCanKey, file=f)
-        PrintPageList(inverseSite, lastKey)
+    # Outer key is the same, the inner key is different.  Save the saved lines and go again
+    tempPrint("innerKey changed from "+innerKey+"  to  "+WikimediaCanonicize(key), fileDump)
+    savedLinesArray.append(savedLines)
+    savedLines=[]
+    savedLines.append(FormatPageList(inverseSite, key))  # Begin a new list of lines
+    tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
 
-    PrintPageList(inverseSite, key)
-    secondLastCanKey=lastCanKey
-    lastCanKey=canKey
 
-f.close()
+
+# secondLastCanKey="2nd last"    # Strings don't matter as long as they're unique
+# lastCanKey="just previous"
+# lastKey=""
+# for key in inverseKeys:
+#     if key == "":
+#         continue
+#     canKey=WikimediaCanonicize(key)
+#
+#     # If this is a new cannonical form, we don't print until we find a second instance.
+#     if canKey != lastCanKey:
+#         lastCanKey=canKey
+#         lastKey=key
+#         continue
+#     else:
+#         if secondLastCanKey != lastCanKey:
+#             # We now know that we have the cannonical key pattern X Y Y and so the *last* loop was a new, duplicated cannonical key.
+#             tempPrint("\n"+lastCanKey, fileMultiple)
+#             PrintPageList(fileMultiple, inverseSite, lastKey)
+#
+#         PrintPageList(fileMultiple, inverseSite, key)
+#         secondLastCanKey=lastCanKey
+#         lastCanKey=canKey
+
+fileMultiple.close()
 i=0
 
 

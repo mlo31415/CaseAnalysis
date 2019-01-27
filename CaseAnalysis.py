@@ -251,10 +251,14 @@ for key in inverseKeys:
     savedLines.append(FormatPageList(inverseSite, key))  # Begin a new list of lines
     tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
 
-
 fileMultiple.close()
-i=0
 
+# Next, we do an analysis of redirects and make a list of all redirects where the target link is all lower case. (These are probably wrong.)
+fileLowerRedirects=open("Redirects Which Are Lowercase.txt", "w")
+for (key, val) in site.items():
+    if val.Redirect is not None:
+        if val.Redirect == val.Redirect.lower() and not val.Redirect.isdigit():
+            tempPrint(key+"  ==>  "+val.Redirect, fileLowerRedirects)
 
-
+fileLowerRedirects.close()
 

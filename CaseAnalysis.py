@@ -64,6 +64,9 @@ def LoadDirectory(site, dir):
 # Locate its links and add this page to the lists of pages that this page points to
 def LoadPage(site, dirpath, fname):
 
+    if fname.startswith("index_"):
+        return
+
     pathname=os.path.join(dirpath, fname)
 
     # Read the tags and title from pathname.xml

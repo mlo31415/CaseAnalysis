@@ -253,6 +253,7 @@ for key in inverseKeys:
 
 fileMultiple.close()
 
+
 # Next, we do an analysis of redirects and make a list of all redirects where the target link is all lower case. (These are probably wrong.)
 fileLowerRedirects=open("Redirects Which Are Lowercase.txt", "w")
 for (key, val) in site.items():
@@ -262,3 +263,42 @@ for (key, val) in site.items():
 
 fileLowerRedirects.close()
 
+
+# Generate a list of double redirects
+fileDoubleRedirects=open("Double Redirects.txt", "w")
+for (key, val) in site.items():
+    if val.Redirect is not None:
+        pageT=val.Title
+        pageCR=WikidotHelpers.Cannonicize(val.Redirect)
+        if pageCR not in site.keys():
+            continue
+        if site[pageCR].Redirect is not None:
+            pageRT=site[pageCR].Title
+            pageRCR=WikidotHelpers.Cannonicize(site[pageCR].Redirect)
+            if pageRCR not in site.keys():
+                tempPrint(pageT+"  ==>  "+pageRT+"  ==>  (missing) "+pageRCR, fileDoubleRedirects)
+                continue
+            pageRRT=site[pageRCR].Title
+            tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT, fileDoubleRedirects)
+            if site[pageRCR].Redirect is not None:
+                pageRRT=site[pageRCR].Title
+                pageRRCR=WikidotHelpers.Cannonicize(site[pageRCR].Redirect)
+                if pageRRCR not in site.keys():
+                    tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT+"  ==>  (missing) "+pageRRCR, fileDoubleRedirects)
+                    continue
+                pageRRRT=site[pageRRCR].Title
+                tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT+"  ==>  "+pageRRCR, fileDoubleRedirects)
+
+
+fileDoubleRedirects.close()
+
+# Generate  a list of redirects with missing targets
+fileMissingRedirect=open("Missing Redirect Target.txt", "w")
+for (key, val) in site.items():
+    if val.Redirect is not None:
+        pageT=val.Title
+        pageCR=WikidotHelpers.Cannonicize(val.Redirect)
+        if pageCR not in site.keys():
+            tempPrint(pageT+"  ==>  "+pageCR, fileMissingRedirect)
+
+fileMissingRedirect.close()

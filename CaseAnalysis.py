@@ -185,12 +185,13 @@ def tempPrint(line, f):
         print(line.encode("UTF-8"), file=f)
 #-----------------------------------
 def FormatPageList(inverseSite, key):
+    maxPages=4
     pages=inverseSite[key]
     line="'"+key+"' <=== "
-    for i in range(0, min(5, len(pages))):
+    for i in range(0, min(maxPages, len(pages))):
         line+="'"+pages[i]+"',  "
-    if len(pages) > 5:
-        line+=" plus "+str(len(pages)-5)+" more..."
+    if len(pages) > maxPages:
+        line+=" plus "+str(len(pages)-maxPages)+" more..."
     return line
 # -----------------------------------
 def PrintPageList(f, inverseSite, key):
@@ -228,7 +229,7 @@ for key in inverseKeys:
 
         # Now deal with the new outer key
         outerKey=WikidotHelpers.Cannonicize(key)
-        innerKey="random string"
+        innerKey=WikimediaCanonicize(key)
         savedLinesArray=[]
         savedLines=[]
 

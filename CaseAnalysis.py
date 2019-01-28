@@ -17,16 +17,14 @@ def logger(message):
 #*******************************************************************************
 # Generate the Wikimedia canonicized form of a name
 # Note that for now we are ignoring the possibility of namespace: prefixes
-def WikimediaCanonicize(name):
-    if name is None:
-        return None
-    if name is "":
-        return ""
+def MediawikiCanonicize(name):
+    if name is None or name is "":
+        return name
 
     # Underscores are treated as spaces
     name=name.replace("_", " ")
 
-    # Leading spaces and underscores are ignored
+    # Leading and trailing spaces and underscores are ignored
     name=name.strip()
 
     # Multiple consecutive spaces are treated as a single space
@@ -112,7 +110,7 @@ def LoadPage(site, dirpath, fname):
         # Now look at the possibility of the link containing display text.  If there is a "|" in the link, then only the text to the left of the "|" is the link
         if "|" in link:
             link=link[:link.find("|")]
-        links.add(link)
+        links.add(link.strip())
         # trim off the text which has been processed and try again
         source=source[loc2:]
 
@@ -129,7 +127,7 @@ root=r"C:\Users\mlo\Documents\usr\Fancyclopedia\Python\site"
 # Walk the directory structure under root
 # We want the following information for each existing page:
 #   Its title
-#   Its cannonical name
+#   Its canonical name
 #   Its tags
 #   Its Links (a list of the exact link text for each link)
 #   If it is a redirect, the exact text of the redirect page name
@@ -175,7 +173,7 @@ for (key, val) in site.items():
 # We'll then list all links that are used in Wikidot which map to different Wikimedia pages.
 inverseKeys=list(inverseSite.keys())
 inverseKeys.sort(key=lambda elem: elem)
-inverseKeys.sort(key=lambda elem: WikimediaCanonicize(elem))
+inverseKeys.sort(key=lambda elem: MediawikiCanonicize(elem))
 inverseKeys.sort(key=lambda elem: WikidotHelpers.Cannonicize(elem))
 
 
@@ -190,11 +188,13 @@ def tempPrint(line, f):
 def FormatPageList(inverseSite, key):
     maxPages=4
     pages=inverseSite[key]
-    line="'"+key+"' <=== "
+    line=""
     for i in range(0, min(maxPages, len(pages))):
-        line+="'"+pages[i]+"',  "
+        if i > 0:
+            line+=",  "
+        line+="'"+pages[i]+"'"
     if len(pages) > maxPages:
-        line+=" plus "+str(len(pages)-maxPages)+" more..."
+        line+=",  plus "+str(len(pages)-maxPages)+" more..."
     return line
 # -----------------------------------
 def PrintPageList(f, inverseSite, key):
@@ -214,45 +214,46 @@ fileDump=open("Dump of process output.txt", "w")
 outerKey="nonsense"
 innerKey="random string"
 savedLinesArray=[]
-savedLines=[]
+savedLine=""
 for key in inverseKeys:
     tempPrint("\nnew key="+key, fileDump)
     # Is this the first record of a new Wikidot canonical name (outer key)?
-    if outerKey != WikidotHelpers.Cannonicize(key):
-        tempPrint("outer key changed from "+outerKey+"  to  "+WikidotHelpers.Cannonicize(key), fileDump)
+    if WikidotHelpers.Cannonicize(outerKey) != WikidotHelpers.Cannonicize(key): # The outer key changes only when it's Wikidot Canonical form changes
+        tempPrint("outer key changed from  "+WikidotHelpers.Cannonicize(outerKey)+"  to  "+WikidotHelpers.Cannonicize(key), fileDump)
 
         # If there were two or more inner keys in the previous outer key, print them
-        if len(savedLinesArray) > 1:
+        if len(savedLinesArray) > 0 and len(savedLine) > 0:
+            savedLinesArray.append(savedLine)
             tempPrint("len(savedLinesArray)="+str(len(savedLinesArray)), fileDump)
             tempPrint("\n"+outerKey, fileMultiple)
-            for sls in savedLinesArray:
-                for l in sls:
-                    tempPrint(l, fileMultiple)
-                    tempPrint("    "+l, fileDump)
+            for l in savedLinesArray:
+                tempPrint(l, fileMultiple)
+                tempPrint("    "+l, fileDump)
 
         # Now deal with the new outer key
-        outerKey=WikidotHelpers.Cannonicize(key)
-        innerKey=WikimediaCanonicize(key)
+        outerKey=key
+        innerKey=key
         savedLinesArray=[]
-        savedLines=[]
+        savedLine=""
 
         # And save the line for this record.
-        savedLines.append(FormatPageList(inverseSite, key))   # Begin a new list of lines
+        savedLine="'"+key+"' <=== "+FormatPageList(inverseSite, key)
         tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
         continue
 
-    # The outer key is the same.  Is the second key the same, also?
-    if innerKey == WikimediaCanonicize(key):
-        tempPrint("innerKey same "+innerKey+"   Saved: "+FormatPageList(inverseSite, key), fileDump)
-        savedLines.append(FormatPageList(inverseSite, key))    # Save this line too
+    # The outer key has not changed.  Is the inner key the same, also?
+    if MediawikiCanonicize(innerKey) == MediawikiCanonicize(key):   # The inner key changes  when it's Mediawiki Canonical form changes
+        tempPrint("innerKey same:  "+MediawikiCanonicize(innerKey)+"   Saved: "+FormatPageList(inverseSite, key), fileDump)
+        savedLine=savedLine+FormatPageList(inverseSite, key)
         continue
 
-    # Outer key is the same, the inner key is different.  Save the saved lines and go again
-    tempPrint("innerKey changed from "+innerKey+"  to  "+WikimediaCanonicize(key), fileDump)
-    savedLinesArray.append(savedLines)
-    savedLines=[]
-    savedLines.append(FormatPageList(inverseSite, key))  # Begin a new list of lines
+    # Outer key has not changed, but the inner key is different.  Save the saved lines and go again
+    tempPrint("innerKey changed from "+MediawikiCanonicize(innerKey)+"  to  "+MediawikiCanonicize(key), fileDump)
+    savedLinesArray.append(savedLine)
+
+    savedLine="'"+key+"' <=== "+FormatPageList(inverseSite, key)  # Begin a new list of lines
     tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
+    innerKey=key
 
 fileMultiple.close()
 

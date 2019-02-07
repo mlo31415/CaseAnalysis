@@ -123,6 +123,7 @@ def LoadPage(site, dirpath, fname):
 # Main
 
 root=r"C:\Users\mlo\Documents\usr\Fancyclopedia\Python\site"
+fileReport=open("Report.txt", "w")
 
 # Walk the directory structure under root
 # We want the following information for each existing page:
@@ -215,6 +216,7 @@ outerKey="nonsense"
 innerKey="random string"
 savedLinesArray=[]
 savedLine=""
+count=0
 for key in inverseKeys:
     tempPrint("\nnew key="+key, fileDump)
     # Is this the first record of a new Wikidot canonical name (outer key)?
@@ -223,6 +225,7 @@ for key in inverseKeys:
 
         # If there were two or more inner keys in the previous outer key, print them
         if len(savedLinesArray) > 0 and len(savedLine) > 0:
+            count+=1
             savedLinesArray.append(savedLine)
             tempPrint("len(savedLinesArray)="+str(len(savedLinesArray)), fileDump)
             tempPrint("\n"+outerKey, fileMultiple)
@@ -255,21 +258,28 @@ for key in inverseKeys:
     tempPrint("saved: "+FormatPageList(inverseSite, key), fileDump)
     innerKey=key
 
+print("Keys with multiple formats:  "+str(count))
+print("Keys with multiple formats:  "+str(count), file=fileReport)
 fileMultiple.close()
 
 
 # Next, we do an analysis of redirects and make a list of all redirects where the target link is all lower case. (These are probably wrong.)
 fileLowerRedirects=open("Redirects Which Are Lowercase.txt", "w")
+count=0
 for (key, val) in site.items():
     if val.Redirect is not None:
         if val.Redirect == val.Redirect.lower() and not val.Redirect.isdigit():
             tempPrint(key+"  ==>  "+val.Redirect, fileLowerRedirects)
+            count+=1
 
+print("Lowercase redirects:  "+str(count))
+print("Lowercase redirects:  "+str(count), file=fileReport)
 fileLowerRedirects.close()
 
 
 # Generate a list of double redirects
 fileDoubleRedirects=open("Double Redirects.txt", "w")
+count=0
 for (key, val) in site.items():
     if val.Redirect is not None:
         pageT=val.Title
@@ -281,6 +291,7 @@ for (key, val) in site.items():
             pageRCR=WikidotHelpers.Cannonicize(site[pageCR].Redirect)
             if pageRCR not in site.keys():
                 tempPrint(pageT+"  ==>  "+pageRT+"  ==>  (missing) "+pageRCR, fileDoubleRedirects)
+                count+=1
                 continue
             pageRRT=site[pageRCR].Title
             tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT, fileDoubleRedirects)
@@ -289,20 +300,29 @@ for (key, val) in site.items():
                 pageRRCR=WikidotHelpers.Cannonicize(site[pageRCR].Redirect)
                 if pageRRCR not in site.keys():
                     tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT+"  ==>  (missing) "+pageRRCR, fileDoubleRedirects)
+                    count+=1
                     continue
                 pageRRRT=site[pageRRCR].Title
                 tempPrint(pageT+"  ==>  "+pageRT+"  ==>  "+pageRRT+"  ==>  "+pageRRCR, fileDoubleRedirects)
+                count+=1
 
-
+print("Double redirects:  "+str(count))
+print("Double redirects:  "+str(count), file=fileReport)
 fileDoubleRedirects.close()
 
 # Generate  a list of redirects with missing targets
 fileMissingRedirect=open("Missing Redirect Target.txt", "w")
+count=0
 for (key, val) in site.items():
     if val.Redirect is not None:
         pageT=val.Title
         pageCR=WikidotHelpers.Cannonicize(val.Redirect)
         if pageCR not in site.keys():
             tempPrint(pageT+"  ==>  "+pageCR, fileMissingRedirect)
+            count+=1
 
+print("Missing redirect targets:  "+str(count))
+print("Missing redirect targets:  "+str(count), file=fileReport)
 fileMissingRedirect.close()
+
+fileReport.close()
